@@ -1,0 +1,35 @@
+@startuml
+title Saga: Ошибка доставки после успешной оплаты
+
+actor Buyer
+participant "Order Service" as order
+participant "Payment Service" as payment
+participant "Delivery Service" as delivery
+participant "Notification Service" as notification
+database "Event Bus (Kafka)" as kafka
+
+order -> kafka: Publish OrderCreated
+kafka -> payment: OrderCreated
+payment -> kafka: Publish PaymentSucceeded
+
+kafka -> delivery: PaymentSucceeded
+delivery -> delivery: Попытка создать заявку на доставку
+note right: Ошибка API логистического провайдера
+
+delivery -> kafka: Publish DeliveryRequestFailed
+note right: Причина: технические проблемы у логиста
+
+kafka -> payment: DeliveryRequestFailed
+payment -> payment: Инициировать возврат средств
+payment -> payment: Отправить запрос на рефанд
+payment -> kafka: Publish PaymentRefunded
+
+kafka -> order: PaymentRefunded
+order -> order: Обновить статус → REFUNDED
+
+kafka -> notification: OrderStatusChanged
+notification -> notification: Отправить уведомление о возврате
+note right: "Доставка временно недоступна. Средства возвращены."
+
+note over order, notification: Полная компенсация выполнена
+@enduml

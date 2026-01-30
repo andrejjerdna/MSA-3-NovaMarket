@@ -1,0 +1,45 @@
+@startuml
+title Saga: Ошибка оплаты - компенсация
+
+actor Buyer
+participant "API Gateway" as gateway
+participant "Order Service" as order
+participant "Inventory Service" as inventory
+participant "Payment Service" as payment
+participant "Notification Service" as notification
+database "Event Bus (Kafka)" as kafka
+
+Buyer -> gateway: POST /orders
+gateway -> order: Создать заказ
+
+order -> order: Создать запись (статус: PENDING)
+order -> kafka: Publish OrderCreated
+
+kafka -> inventory: OrderCreated
+inventory -> inventory: Зарезервировать товары
+inventory -> kafka: Publish StockReserved
+
+kafka -> payment: StockReserved
+payment -> payment: Инициировать платеж
+payment -> payment: Получить отказ от платежного шлюза
+payment -> kafka: Publish PaymentFailed
+note right: Причина: недостаточно средств / ошибка карты
+
+kafka -> order: PaymentFailed
+order -> order: Обновить статус → PAYMENT_FAILED
+
+kafka -> inventory: PaymentFailed
+inventory -> inventory: Отменить резервацию товаров
+inventory -> kafka: Publish StockReservationCancelled
+note right: Товары возвращены в доступный остаток
+
+kafka -> order: StockReservationCancelled
+order -> order: Обновить статус → CANCELLED
+order -> kafka: Publish OrderCancelled
+
+kafka -> notification: OrderCancelled
+notification -> notification: Отправить уведомление об отмене
+notification -> Buyer: Push: "Заказ отменен. Оплата не прошла"
+
+note over Buyer, notification: Компенсационная транзакция выполнена
+@enduml

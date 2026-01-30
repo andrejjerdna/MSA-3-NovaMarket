@@ -66,15 +66,15 @@ Rel(delivery_service, logistics_provider, "Создает заявку на до
 
 Rel(seller, notification_service, "Получает уведомления", "Email/Push")
 
-Rel(catalog_query_service, catalog_query_db, "Чтение/запись", "JDBC")
-Rel(catalog_cmd_service, catalog_cmd_db, "Чтение/запись", "JDBC")
-Rel(cart_service, cart_event_store, "Сохраняет события", "JDBC/gRPC")
+Rel(catalog_query_service, catalog_query_db, "Чтение/запись", "SQL")
+Rel(catalog_cmd_service, catalog_cmd_db, "Чтение/запись", "SQL")
+Rel(cart_service, cart_event_store, "Сохраняет события", "SQL/gRPC")
 Rel(cart_service, cart_view_db, "Чтение/запись состояния", "Redis Protocol")
-Rel(order_service, order_db, "Чтение/запись", "JDBC")
-Rel(payment_service, payment_db, "Чтение/запись", "JDBC")
-Rel(inventory_service, inventory_db, "Чтение/запись", "JDBC")
-Rel(delivery_service, delivery_db, "Чтение/запись", "JDBC")
-Rel(customer_service, customer_db, "Чтение/запись", "JDBC")
+Rel(order_service, order_db, "Чтение/запись", "SQL")
+Rel(payment_service, payment_db, "Чтение/запись", "SQL")
+Rel(inventory_service, inventory_db, "Чтение/запись", "SQL")
+Rel(delivery_service, delivery_db, "Чтение/запись", "SQL")
+Rel(customer_service, customer_db, "Чтение/запись", "SQL")
 
 ' События от существующих сервисов
 Rel(order_service, event_bus, "Публикует: OrderCreated, OrderStatusChanged", "Kafka")
@@ -86,7 +86,7 @@ Rel(catalog_cmd_service, event_bus, "Публикует: ProductUpdated", "Kafka
 Rel(api_gateway, orders_history_service, "Просматривает историю заказов", "HTTPS")
 
 ' Orders History Service обновляет свою БД
-Rel(orders_history_service, orders_history_db, "Записывает/читает агрегированные данные", "JDBC")
+Rel(orders_history_service, orders_history_db, "Записывает/читает агрегированные данные", "SQL")
 
 ' Orders History Service подписывается на события
 Rel(orders_history_service, event_bus, "Подписан на: OrderCreated, OrderStatusChanged, PaymentSucceeded, PaymentFailed, DeliveryStatusChanged, ProductUpdated", "Kafka")

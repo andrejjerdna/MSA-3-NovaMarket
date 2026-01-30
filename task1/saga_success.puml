@@ -1,0 +1,52 @@
+@startuml
+title Saga: Успешное оформление заказа
+
+actor Buyer
+participant "API Gateway" as gateway
+participant "Order Service" as order
+participant "Inventory Service" as inventory
+participant "Payment Service" as payment
+participant "Delivery Service" as delivery
+participant "Notification Service" as notification
+database "Event Bus (Kafka)" as kafka
+
+Buyer -> gateway: POST /orders (cart items, address, payment method)
+gateway -> order: Создать заказ
+
+order -> order: Создать запись заказа (статус: PENDING)
+order -> kafka: Publish OrderCreated
+
+note over order, kafka: Подписчики получают событие
+
+kafka -> inventory: OrderCreated
+inventory -> inventory: Проверить наличие товаров
+inventory -> inventory: Зарезервировать товары
+inventory -> kafka: Publish StockReserved
+note right: Событие содержит orderId и статус
+
+kafka -> payment: StockReserved
+payment -> payment: Подготовить данные для оплаты
+payment -> payment: Инициировать платеж через шлюз
+payment -> kafka: Publish PaymentProcessed
+note right: Статус: PROCESSING
+
+kafka -> payment: PaymentSucceeded (webhook от шлюза)
+payment -> kafka: Publish PaymentSucceeded
+
+kafka -> delivery: PaymentSucceeded
+delivery -> delivery: Создать заявку на доставку
+delivery -> delivery: Отправить запрос логисту
+delivery -> kafka: Publish DeliveryRequested
+
+kafka -> order: StockReserved, PaymentSucceeded, DeliveryRequested
+order -> order: Обновить статус заказа → PROCESSING
+order -> kafka: Publish OrderStatusChanged
+
+kafka -> notification: OrderStatusChanged
+notification -> notification: Отправить уведомление покупателю
+notification -> notification: Отправить уведомление продавцу
+
+kafka -> Buyer: Push-уведомление (через мобильное приложение)
+
+note over Buyer, notification: Заказ успешно оформлен и обрабатывается
+@enduml

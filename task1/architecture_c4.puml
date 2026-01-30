@@ -36,8 +36,6 @@ System_Boundary(app, "NovaMarket") {
     Container(notification_service, "Notification Service", ".NET", "Отправка уведомлений (email, push, sms) покупателям и продавцам")
     
     Container(event_bus, "Event Bus", "Apache Kafka", "Центральная шина для обмена событиями между микросервисами")
-
-    Container(stock_event_bus, "Event Bus", "Apache Kafka", "Сообщения по движению стоков товаров")
 }
 
 System_Ext(payment_gateway, "Платежный шлюз", "СБП, СберPay и аналоги")
@@ -64,16 +62,14 @@ Rel(delivery_service, logistics_provider, "Создает заявку на до
 
 Rel(seller, notification_service, "Получает уведомления", "Email/Push")
 
-Rel(catalog_query_service, catalog_query_db, "Чтение/запись", "JDBC")
-Rel(catalog_cmd_service, catalog_cmd_db, "Чтение/запись", "JDBC")
-Rel(cart_service, cart_event_store, "Сохраняет события", "JDBC/gRPC")
+Rel(catalog_query_service, catalog_query_db, "Чтение/запись", "SQL")
+Rel(catalog_cmd_service, catalog_cmd_db, "Чтение/запись", "SQL")
+Rel(cart_service, cart_event_store, "Сохраняет события", "SQL/gRPC")
 Rel(cart_service, cart_view_db, "Чтение/запись состояния", "Redis Protocol")
-Rel(order_service, order_db, "Чтение/запись", "JDBC")
-Rel(payment_service, payment_db, "Чтение/запись", "JDBC")
-Rel(inventory_service, inventory_db, "Чтение/запись", "JDBC")
-Rel(delivery_service, delivery_db, "Чтение/запись", "JDBC")
-Rel(customer_service, customer_db, "Чтение/запись", "JDBC")
-
-Rel(inventory_service, stock_event_bus, "Подписан на: OrderCreated, OrderStatusChanged, PaymentProcessed", "Kafka Protocol")
+Rel(order_service, order_db, "Чтение/запись", "SQL")
+Rel(payment_service, payment_db, "Чтение/запись", "SQL")
+Rel(inventory_service, inventory_db, "Чтение/запись", "SQL")
+Rel(delivery_service, delivery_db, "Чтение/запись", "SQL")
+Rel(customer_service, customer_db, "Чтение/запись", "SQL")
 
 @enduml

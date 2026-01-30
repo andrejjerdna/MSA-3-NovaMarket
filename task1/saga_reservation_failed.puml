@@ -1,0 +1,37 @@
+@startuml
+title Saga: Ошибка резервации - быстрая отмена
+
+actor Buyer
+participant "API Gateway" as gateway
+participant "Order Service" as order
+participant "Inventory Service" as inventory
+participant "Notification Service" as notification
+database "Event Bus (Kafka)" as kafka
+
+Buyer -> gateway: POST /orders
+gateway -> order: Создать заказ
+
+order -> order: Создать запись (статус: PENDING)
+order -> kafka: Publish OrderCreated
+
+kafka -> inventory: OrderCreated
+inventory -> inventory: Проверить наличие товаров
+note right: Некоторые товары недоступны
+
+inventory -> kafka: Publish ReservationFailed
+note right: Причина: товар закончился / недостаточно остатка
+
+kafka -> order: ReservationFailed
+order -> order: Обновить статус → RESERVATION_FAILED
+
+order -> order: Удалить/архивировать заказ
+order -> kafka: Publish OrderCancelled
+
+kafka -> notification: OrderCancelled
+notification -> notification: Отправить уведомление
+note right: "Некоторые товары недоступны. Попробуйте позже."
+
+notification -> Buyer: Push: "Заказ не оформлен"
+
+note over Buyer, notification: Компенсация не требуется - оплата еще не инициирована
+@enduml
