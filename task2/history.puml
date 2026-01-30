@@ -1,0 +1,94 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+Person(buyer, "Покупатель", "Покупает товары через мобильное приложение")
+Person(seller, "Продавец", "Получает уведомления о новых заказах")
+
+System_Boundary(app, "NovaMarket") {
+    Container(api_gateway, "API Gateway", ".NET", "Маршрутизация, аутентификация, кэширование, лимиты")
+    Container(spa, "Мобильное приложение", "React Native / Swift / Kotlin", "Клиентское приложение")
+
+    Container(catalog_cmd_service, "Catalog Command Service", ".NET", "Обработка команд: добавление/обновление товаров, цен, остатков. Генерирует события")
+    ContainerDb(catalog_cmd_db, "Catalog Command DB", "PostgreSQL", "Хранит текущее состояние товаров (команды)")
+    
+    Container(catalog_query_service, "Catalog Query Service", ".NET", "Обработка запросов: поиск, фильтрация, просмотр карточек. Подписан на события от Catalog Command Service")
+    ContainerDb(catalog_query_db, "Catalog Query DB", "Elasticsearch", "Оптимизированная БД для быстрого поиска и чтения (денаormalized data)")
+    
+    Container(cart_service, "Cart Service", ".NET", "Управление корзиной на основе Event Sourcing")
+    ContainerDb(cart_event_store, "Cart Event Store", "EventStoreDB / PostgreSQL (с таблицей событий)", "Хранит поток событий корзины (ItemAdded, ItemRemoved)")
+    ContainerDb(cart_view_db, "Cart View DB", "Redis", "Проекция текущего состояния корзины для быстрого доступа")
+    
+    Container(order_service, "Order Service", ".NET", "Оркестрация процесса оформления заказа (Saga Choreography)")
+    ContainerDb(order_db, "Order DB", "PostgreSQL", "Хранит заказы и их статусы")
+    
+    Container(payment_service, "Payment Service", ".NET", "Взаимодействие с внешним платежным шлюзом, управление платежами")
+    ContainerDb(payment_db, "Payment DB", "PostgreSQL", "Хранит транзакции и состояния платежей")
+    
+    Container(inventory_service, "Inventory Service", ".NET", "Управление остатками товаров, резервирование")
+    ContainerDb(inventory_db, "Inventory DB", "PostgreSQL", "Хранит актуальные остатки на складе")
+    
+    Container(delivery_service, "Delivery Service", ".NET", "Взаимодействие с логистическим провайдером, трекинг")
+    ContainerDb(delivery_db, "Delivery DB", "PostgreSQL", "Хранит данные о доставке")
+
+    Container(customer_service, "Customer Service", "Java / Spring Boot", "Профили покупателей, адреса и настройки.")
+    ContainerDb(customer_db, "Customer DB", "PostgreSQL", "Хранит данные о пользователях")
+    
+    Container(notification_service, "Notification Service", ".NET", "Отправка уведомлений (email, push, sms) покупателям и продавцам")
+    
+    Container(event_bus, "Event Bus", "Apache Kafka", "Центральная шина для обмена событиями между микросервисами")
+
+    ' НОВЫЙ сервис для истории заказов (CQRS)
+    Container(orders_history_service, "Orders History Service", ".NET", "Агрегация данных для истории заказов (CQRS Query)")
+    ContainerDb(orders_history_db, "Orders History DB", "Clickhouse", "Денормализованная БД для быстрого чтения")
+}
+
+System_Ext(payment_gateway, "Платежный шлюз", "СБП, СберPay и аналоги")
+System_Ext(logistics_provider, "Логистический провайдер", "СДЭК / Boxberry / собственный фулфилмент")
+
+Rel(buyer, spa, "Просматривает, добавляет в корзину, оформляет заказ")
+Rel(spa, api_gateway, "API запросы", "HTTPS/REST, WebSocket")
+Rel(api_gateway, catalog_query_service, "Получает данные каталога, поиск", "gRPC")
+Rel(api_gateway, cart_service, "Управляет корзиной", "gRPC")
+Rel(api_gateway, order_service, "Создает/получает заказы", "gRPC")
+Rel(api_gateway, customer_service, "Данные о пользователях", "gRPC")
+
+Rel(catalog_cmd_service, event_bus, "Публикует: ProductCreated, PriceUpdated, StockChanged", "Kafka Protocol")
+Rel(catalog_query_service, event_bus, "Подписан на события каталога", "Kafka Protocol")
+Rel(cart_service, event_bus, "Публикует: CartCheckedOut", "Kafka Protocol")
+Rel(order_service, event_bus, "Публикует: OrderCreated, OrderCancelled\nПодписан на: PaymentProcessed, DeliveryStatusChanged", "Kafka Protocol")
+Rel(payment_service, event_bus, "Публикует: PaymentProcessed, PaymentFailed\nПодписан на: OrderCreated", "Kafka Protocol")
+Rel(inventory_service, event_bus, "Публикует: StockReserved, ReservationFailed\nПодписан на: OrderCreated", "Kafka Protocol")
+Rel(delivery_service, event_bus, "Публикует: DeliveryStatusChanged\nПодписан на: OrderPaid", "Kafka Protocol")
+Rel(notification_service, event_bus, "Подписан на: OrderCreated, OrderStatusChanged, PaymentProcessed", "Kafka Protocol")
+
+Rel(payment_service, payment_gateway, "Инициирует платеж, проверяет статус", "gRPC")
+Rel(delivery_service, logistics_provider, "Создает заявку на доставку, запрашивает трек", "gRPC")
+
+Rel(seller, notification_service, "Получает уведомления", "Email/Push")
+
+Rel(catalog_query_service, catalog_query_db, "Чтение/запись", "JDBC")
+Rel(catalog_cmd_service, catalog_cmd_db, "Чтение/запись", "JDBC")
+Rel(cart_service, cart_event_store, "Сохраняет события", "JDBC/gRPC")
+Rel(cart_service, cart_view_db, "Чтение/запись состояния", "Redis Protocol")
+Rel(order_service, order_db, "Чтение/запись", "JDBC")
+Rel(payment_service, payment_db, "Чтение/запись", "JDBC")
+Rel(inventory_service, inventory_db, "Чтение/запись", "JDBC")
+Rel(delivery_service, delivery_db, "Чтение/запись", "JDBC")
+Rel(customer_service, customer_db, "Чтение/запись", "JDBC")
+
+' События от существующих сервисов
+Rel(order_service, event_bus, "Публикует: OrderCreated, OrderStatusChanged", "Kafka")
+Rel(payment_service, event_bus, "Публикует: PaymentSucceeded, PaymentFailed", "Kafka")
+Rel(delivery_service, event_bus, "Публикует: DeliveryStatusChanged", "Kafka")
+Rel(catalog_cmd_service, event_bus, "Публикует: ProductUpdated", "Kafka")
+
+' Взаимодействие с фронтендом
+Rel(api_gateway, orders_history_service, "Просматривает историю заказов", "HTTPS")
+
+' Orders History Service обновляет свою БД
+Rel(orders_history_service, orders_history_db, "Записывает/читает агрегированные данные", "JDBC")
+
+' Orders History Service подписывается на события
+Rel(orders_history_service, event_bus, "Подписан на: OrderCreated, OrderStatusChanged, PaymentSucceeded, PaymentFailed, DeliveryStatusChanged, ProductUpdated", "Kafka")
+
+@enduml

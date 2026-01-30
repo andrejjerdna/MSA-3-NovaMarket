@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:latest
+    container_name: my-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/rate-limit.conf:/etc/nginx/nginx.conf:ro
+    restart: unless-stopped
+    networks:
+      - webnet
+
+networks:
+  webnet:
